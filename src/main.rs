@@ -1,31 +1,31 @@
-use std::{
-    io::{self, BufRead, BufReader, Read, Write},
-    net::{TcpListener, TcpStream},
-};
+use std::io;
 
 use http_server_starter_rust::{
     request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
 };
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
+    net::{TcpListener, TcpStream},
+};
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:4221").await?;
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                if let Err(err) = handle_client(stream) {
-                    eprintln!("I/O error while responding to client: {err}");
-                }
+    loop {
+        match listener.accept().await {
+            Ok((stream, _addr)) => {
+                tokio::spawn(handle_client(stream));
             }
-            Err(e) => {
-                eprintln!("error: {}", e);
+            Err(err) => {
+                eprintln!("error: {err}");
             }
         }
     }
 }
 
-fn handle_client(mut stream: TcpStream) -> io::Result<()> {
-    let req_raw = read_request_head(&mut stream)?;
+async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+    let req_raw = read_request_head(&mut stream).await?;
 
     let Ok((_, request)) = HttpRequest::parse(&req_raw) else {
         eprintln!("Invalid HTTP request: {req_raw:?}");
@@ -35,7 +35,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     match (request.verb, request.target.as_str()) {
         (HttpVerb::Get, target) if target.starts_with("/echo/") => {
             let response = HttpResponse::new(HttpStatusCode::Ok, &target[6..]);
-            write!(stream, "{}", response.to_string())?;
+            stream.write_all(response.to_string().as_bytes()).await?;
             log_response(&request, &response);
         }
         (HttpVerb::Get, "/user-agent") => {
@@ -43,17 +43,17 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),
                 None => HttpResponse::new(HttpStatusCode::BadRequest, ()),
             };
-            write!(stream, "{}", response.to_string())?;
+            stream.write_all(response.to_string().as_bytes()).await?;
             log_response(&request, &response);
         }
         (HttpVerb::Get, "/") => {
             let response = HttpResponse::new(HttpStatusCode::Ok, ());
-            write!(stream, "{}", response.to_string())?;
+            stream.write_all(response.to_string().as_bytes()).await?;
             log_response(&request, &response);
         }
         _ => {
             let response = HttpResponse::new(HttpStatusCode::NotFound, ());
-            write!(stream, "{}", response.to_string())?;
+            stream.write_all(response.to_string().as_bytes()).await?;
             log_response(&request, &response);
         }
     }
@@ -61,13 +61,13 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_request_head<R: Read>(stream: &mut R) -> io::Result<String> {
+async fn read_request_head<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<String> {
     let mut buf_reader = BufReader::new(stream);
     let mut output = String::with_capacity(1024);
 
     loop {
         let mut line = String::with_capacity(512);
-        buf_reader.read_line(&mut line)?;
+        buf_reader.read_line(&mut line).await?;
         output.push_str(&line);
         if line == "\r\n" {
             break;
