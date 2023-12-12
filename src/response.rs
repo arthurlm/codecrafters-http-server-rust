@@ -40,7 +40,7 @@ impl HttpResponse {
         Ok(())
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_http_string(&self) -> String {
         let mut buf = Vec::with_capacity(512);
         self.encode(&mut buf).expect("Fail to write string");
         String::from_utf8(buf).expect("Invalid UTF8 string")

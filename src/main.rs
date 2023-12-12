@@ -59,7 +59,9 @@ async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<(
         _ => HttpResponse::new(HttpStatusCode::NotFound, ()),
     };
 
-    stream.write_all(response.to_string().as_bytes()).await?;
+    stream
+        .write_all(response.to_http_string().as_bytes())
+        .await?;
     log_response(&request, &response);
 
     Ok(())
