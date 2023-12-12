@@ -1,21 +1,24 @@
-use std::io;
+use std::{env, io, path::PathBuf};
 
 use http_server_starter_rust::{
     request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
 };
 use tokio::{
+    fs,
     io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    let root_dir = parse_cli_directory().unwrap_or_else(|| env::current_dir().unwrap());
     let listener = TcpListener::bind("127.0.0.1:4221").await?;
+    println!("Serving files from: {root_dir:?}");
 
     loop {
         match listener.accept().await {
             Ok((stream, _addr)) => {
-                tokio::spawn(handle_client(stream));
+                tokio::spawn(handle_client(stream, root_dir.clone()));
             }
             Err(err) => {
                 eprintln!("error: {err}");
@@ -24,7 +27,13 @@ async fn main() -> io::Result<()> {
     }
 }
 
-async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+fn parse_cli_directory() -> Option<PathBuf> {
+    let index = env::args().position(|x| x == "--directory")?;
+    let addr = env::args().nth(index + 1)?;
+    addr.parse().ok()
+}
+
+async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<()> {
     let req_raw = read_request_head(&mut stream).await?;
 
     let Ok((_, request)) = HttpRequest::parse(&req_raw) else {
@@ -32,31 +41,26 @@ async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
         return Ok(());
     };
 
-    match (request.verb, request.target.as_str()) {
+    let response = match (request.verb, request.target.as_str()) {
         (HttpVerb::Get, target) if target.starts_with("/echo/") => {
-            let response = HttpResponse::new(HttpStatusCode::Ok, &target[6..]);
-            stream.write_all(response.to_string().as_bytes()).await?;
-            log_response(&request, &response);
+            HttpResponse::new(HttpStatusCode::Ok, &target[6..])
         }
-        (HttpVerb::Get, "/user-agent") => {
-            let response = match request.get_header("user-agent") {
-                Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),
-                None => HttpResponse::new(HttpStatusCode::BadRequest, ()),
-            };
-            stream.write_all(response.to_string().as_bytes()).await?;
-            log_response(&request, &response);
+        (HttpVerb::Get, target) if target.starts_with("/files/") => {
+            match fs::read(root_dir.join(&target[7..])).await {
+                Ok(content) => HttpResponse::new(HttpStatusCode::Ok, content),
+                Err(_err) => HttpResponse::new(HttpStatusCode::NotFound, ()),
+            }
         }
-        (HttpVerb::Get, "/") => {
-            let response = HttpResponse::new(HttpStatusCode::Ok, ());
-            stream.write_all(response.to_string().as_bytes()).await?;
-            log_response(&request, &response);
-        }
-        _ => {
-            let response = HttpResponse::new(HttpStatusCode::NotFound, ());
-            stream.write_all(response.to_string().as_bytes()).await?;
-            log_response(&request, &response);
-        }
-    }
+        (HttpVerb::Get, "/user-agent") => match request.get_header("user-agent") {
+            Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),
+            None => HttpResponse::new(HttpStatusCode::BadRequest, ()),
+        },
+        (HttpVerb::Get, "/") => HttpResponse::new(HttpStatusCode::Ok, ()),
+        _ => HttpResponse::new(HttpStatusCode::NotFound, ()),
+    };
+
+    stream.write_all(response.to_string().as_bytes()).await?;
+    log_response(&request, &response);
 
     Ok(())
 }

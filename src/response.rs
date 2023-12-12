@@ -52,6 +52,7 @@ impl HttpResponse {
 pub enum HttpContent {
     NoContent,
     TextPlain(String),
+    Bytes(Vec<u8>),
 }
 
 impl HttpContent {
@@ -60,6 +61,9 @@ impl HttpContent {
             HttpContent::NoContent => {}
             HttpContent::TextPlain(txt) => {
                 write!(buf, "{txt}")?;
+            }
+            HttpContent::Bytes(data) => {
+                buf.write_all(data)?;
             }
         }
 
@@ -70,6 +74,7 @@ impl HttpContent {
         match self {
             HttpContent::NoContent => None,
             HttpContent::TextPlain(txt) => Some(txt.len()),
+            HttpContent::Bytes(data) => Some(data.len()),
         }
     }
 
@@ -77,6 +82,7 @@ impl HttpContent {
         match self {
             HttpContent::NoContent => None,
             HttpContent::TextPlain(_) => Some("text/plain"),
+            HttpContent::Bytes(_) => Some("application/octet-stream"),
         }
     }
 }
@@ -90,6 +96,18 @@ impl From<String> for HttpContent {
 impl From<&str> for HttpContent {
     fn from(value: &str) -> Self {
         value.to_string().into()
+    }
+}
+
+impl From<Vec<u8>> for HttpContent {
+    fn from(value: Vec<u8>) -> Self {
+        Self::Bytes(value)
+    }
+}
+
+impl From<&[u8]> for HttpContent {
+    fn from(value: &[u8]) -> Self {
+        value.to_vec().into()
     }
 }
 
