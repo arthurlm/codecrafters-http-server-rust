@@ -36,13 +36,17 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
         return Ok(());
     };
 
-    match (request.verb, request.target.as_ref()) {
+    match (request.verb, request.target.as_str()) {
+        (HttpVerb::Get, target) if target.starts_with("/echo/") => {
+            let response = HttpResponse::new(HttpStatusCode::Ok, &target[6..]);
+            write!(stream, "{}", response.to_string())?;
+        }
         (HttpVerb::Get, "/") => {
-            let response = HttpResponse::new(HttpStatusCode::Ok);
+            let response = HttpResponse::new(HttpStatusCode::Ok, ());
             write!(stream, "{}", response.to_string())?;
         }
         _ => {
-            let response = HttpResponse::new(HttpStatusCode::NotFound);
+            let response = HttpResponse::new(HttpStatusCode::NotFound, ());
             write!(stream, "{}", response.to_string())?;
         }
     }
