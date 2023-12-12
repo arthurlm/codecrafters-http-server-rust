@@ -1,4 +1,4 @@
-use http_server_starter_rust::response::*;
+use http_server_starter_rust::{response::*, HttpStatusCode};
 
 #[test]
 fn test_encode_basic_response() {

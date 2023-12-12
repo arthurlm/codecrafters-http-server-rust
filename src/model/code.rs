@@ -8,7 +8,7 @@ pub enum HttpStatusCode {
 }
 
 impl HttpStatusCode {
-    pub fn as_text(&self) -> &'static str {
+    pub fn as_http_text(&self) -> &'static str {
         match self {
             HttpStatusCode::Ok => "OK",
             HttpStatusCode::NotFound => "Not Found",

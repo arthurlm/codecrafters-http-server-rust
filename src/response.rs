@@ -1,8 +1,6 @@
-mod code;
-
 use std::io;
 
-pub use code::HttpStatusCode;
+use crate::HttpStatusCode;
 
 #[derive(Debug)]
 pub struct HttpResponse {
@@ -19,7 +17,7 @@ impl HttpResponse {
             buf,
             "HTTP/1.1 {} {}\r\n",
             self.code as u16,
-            self.code.as_text()
+            self.code.as_http_text()
         )?;
         write!(buf, "\r\n")?;
         Ok(())
