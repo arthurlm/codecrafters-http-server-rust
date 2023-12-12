@@ -8,8 +8,9 @@ use nom::{
     sequence::tuple,
     IResult,
 };
+use tokio::io::{AsyncRead, AsyncReadExt};
 
-use crate::{HttpHeader, HttpVerb};
+use crate::{HttpHeader, HttpServerError, HttpVerb};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct HttpRequest {
@@ -44,5 +45,19 @@ impl HttpRequest {
             .iter()
             .find(|h| h.name == lower_name)
             .map(|h| h.value.as_str())
+    }
+
+    pub async fn read_content<R>(&self, reader: &mut R) -> Result<Vec<u8>, HttpServerError>
+    where
+        R: AsyncRead + Unpin,
+    {
+        let content_length: usize = self
+            .get_header("content-length")
+            .ok_or(HttpServerError::MissingHeader("content-length"))?
+            .parse()?;
+
+        let mut output = vec![0; content_length];
+        reader.read_exact(&mut output).await?;
+        Ok(output)
     }
 }

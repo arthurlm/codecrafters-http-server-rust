@@ -1,10 +1,10 @@
 use std::{env, io, path::PathBuf};
 
 use http_server_starter_rust::{
-    file_server::serve_file, request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
+    file_server, request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
 
@@ -33,7 +33,8 @@ fn parse_cli_directory() -> Option<PathBuf> {
 }
 
 async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<()> {
-    let req_raw = read_request_head(&mut stream).await?;
+    let mut reader = BufReader::new(&mut stream);
+    let req_raw = read_request_head(&mut reader).await?;
 
     let Ok((_, request)) = HttpRequest::parse(&req_raw) else {
         eprintln!("Invalid HTTP request: {req_raw:?}");
@@ -45,7 +46,10 @@ async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<(
             HttpResponse::new(HttpStatusCode::Ok, &target[6..])
         }
         (HttpVerb::Get, target) if target.starts_with("/files/") => {
-            serve_file(root_dir.join(&target[7..])).await
+            file_server::serve_file(root_dir.join(&target[7..])).await
+        }
+        (HttpVerb::Post, target) if target.starts_with("/files/") => {
+            handle_file_upload(&request, &mut reader, root_dir).await
         }
         (HttpVerb::Get, "/user-agent") => match request.get_header("user-agent") {
             Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),
@@ -61,13 +65,12 @@ async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<(
     Ok(())
 }
 
-async fn read_request_head<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<String> {
-    let mut buf_reader = BufReader::new(stream);
+async fn read_request_head<R: AsyncBufRead + Unpin>(stream: &mut R) -> io::Result<String> {
     let mut output = String::with_capacity(1024);
 
     loop {
         let mut line = String::with_capacity(512);
-        buf_reader.read_line(&mut line).await?;
+        stream.read_line(&mut line).await?;
         output.push_str(&line);
         if line == "\r\n" {
             break;
@@ -75,6 +78,18 @@ async fn read_request_head<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<S
     }
 
     Ok(output)
+}
+
+async fn handle_file_upload<R: AsyncBufRead + Unpin>(
+    request: &HttpRequest,
+    stream: &mut R,
+    root_dir: PathBuf,
+) -> HttpResponse {
+    let Ok(content) = request.read_content(stream).await else {
+        return HttpResponse::new(HttpStatusCode::BadRequest, ());
+    };
+
+    file_server::save_file(root_dir.join(&request.target[7..]), &content).await
 }
 
 fn log_response(req: &HttpRequest, res: &HttpResponse) {
