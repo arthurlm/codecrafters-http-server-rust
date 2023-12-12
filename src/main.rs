@@ -1,10 +1,9 @@
 use std::{env, io, path::PathBuf};
 
 use http_server_starter_rust::{
-    request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
+    file_server::serve_file, request::HttpRequest, response::HttpResponse, HttpStatusCode, HttpVerb,
 };
 use tokio::{
-    fs,
     io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
 };
@@ -46,10 +45,7 @@ async fn handle_client(mut stream: TcpStream, root_dir: PathBuf) -> io::Result<(
             HttpResponse::new(HttpStatusCode::Ok, &target[6..])
         }
         (HttpVerb::Get, target) if target.starts_with("/files/") => {
-            match fs::read(root_dir.join(&target[7..])).await {
-                Ok(content) => HttpResponse::new(HttpStatusCode::Ok, content),
-                Err(_err) => HttpResponse::new(HttpStatusCode::NotFound, ()),
-            }
+            serve_file(root_dir.join(&target[7..])).await
         }
         (HttpVerb::Get, "/user-agent") => match request.get_header("user-agent") {
             Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),

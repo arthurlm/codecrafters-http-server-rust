@@ -1,3 +1,4 @@
+pub mod file_server;
 pub mod request;
 pub mod response;
 
