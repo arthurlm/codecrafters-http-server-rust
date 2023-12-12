@@ -10,7 +10,7 @@ use tokio::{
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let root_dir = parse_cli_directory().unwrap_or_else(|| env::current_dir().unwrap());
+    let root_dir = parse_cli_directory().unwrap_or_else(env::temp_dir);
     let listener = TcpListener::bind("127.0.0.1:4221").await?;
     println!("Serving files from: {root_dir:?}");
 
