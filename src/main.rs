@@ -38,6 +38,14 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             write!(stream, "{}", response.to_string())?;
             log_response(&request, &response);
         }
+        (HttpVerb::Get, "/user-agent") => {
+            let response = match request.get_header("user-agent") {
+                Some(agent) => HttpResponse::new(HttpStatusCode::Ok, agent),
+                None => HttpResponse::new(HttpStatusCode::BadRequest, ()),
+            };
+            write!(stream, "{}", response.to_string())?;
+            log_response(&request, &response);
+        }
         (HttpVerb::Get, "/") => {
             let response = HttpResponse::new(HttpStatusCode::Ok, ());
             write!(stream, "{}", response.to_string())?;
