@@ -13,9 +13,9 @@ pub enum HttpStatusCode {
 impl HttpStatusCode {
     pub fn as_http_text(&self) -> &'static str {
         match self {
-            HttpStatusCode::BadRequest => "Bad Request",
-            HttpStatusCode::Created => "Created",
             HttpStatusCode::Ok => "OK",
+            HttpStatusCode::Created => "Created",
+            HttpStatusCode::BadRequest => "Bad Request",
             HttpStatusCode::NotFound => "Not Found",
             HttpStatusCode::InternalServerError => "Internal Server Error",
         }

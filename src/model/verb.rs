@@ -1,4 +1,4 @@
-use nom::{branch::alt, bytes::complete::tag, IResult};
+use nom::{branch::alt, bytes::complete::tag, combinator::value, IResult};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum HttpVerb {
@@ -12,26 +12,14 @@ pub enum HttpVerb {
 
 impl HttpVerb {
     pub fn parse(input: &str) -> IResult<&str, Self> {
-        let (input, value) = alt((
-            tag("HEAD"),
-            tag("OPTIONS"),
-            tag("GET"),
-            tag("PUT"),
-            tag("POST"),
-            tag("DELETE"),
-        ))(input)?;
-
-        let output = match value {
-            "HEAD" => HttpVerb::Head,
-            "OPTIONS" => HttpVerb::Options,
-            "GET" => HttpVerb::Get,
-            "PUT" => HttpVerb::Put,
-            "POST" => HttpVerb::Post,
-            "DELETE" => HttpVerb::Delete,
-            _ => unreachable!(),
-        };
-
-        Ok((input, output))
+        alt((
+            value(HttpVerb::Head, tag("HEAD")),
+            value(HttpVerb::Options, tag("OPTIONS")),
+            value(HttpVerb::Get, tag("GET")),
+            value(HttpVerb::Put, tag("PUT")),
+            value(HttpVerb::Post, tag("POST")),
+            value(HttpVerb::Delete, tag("DELETE")),
+        ))(input)
     }
 
     pub fn as_http_text(&self) -> &'static str {

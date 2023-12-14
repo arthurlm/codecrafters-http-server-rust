@@ -2,7 +2,7 @@ use std::io;
 
 use crate::HttpStatusCode;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct HttpResponse {
     pub code: HttpStatusCode,
     pub content: HttpContent,
@@ -47,7 +47,7 @@ impl HttpResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HttpContent {
     NoContent,
